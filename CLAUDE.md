@@ -476,7 +476,7 @@ Detail: `docs/FILE-MAP.md`, Root and `.github/`; `docs/COLLABORATORS.md`.
 | Folder | What is in it |
 | --- | --- |
 | `build/` | The shared layer (above) and the pipelines: `ars_pipeline/` (`build_ars_gen.py`, `metrics_gen.py`, `companion_deck.py`, `ti/` + `build_ti_gen.py`), `ics_pipeline/` (`build_ics_gen.py`), `mrpc_pipeline/` (`build_mrpc_gen.py`), `cashplease_pipeline/` (`build_cp_gen.py`), `ils_pipeline/`, `ils_analysis/`, `review_page/` (Live Review). |
-| `scripts/` | Entry points: `build_month.py`, `promote_month.py`, `ars_launcher.py`, `ars_launcher_web.py` + `sheila_hub*.py` (Sheila), `build_cashplease.py`, `oddd_optimize.py`, `watch_sources.py`, `deck_status.py`, `dashboard.py`, `refresh_performance_dashboard.py`, `release_launcher.ps1`, `live_review.py`, `register_*.ps1`, `launchers/`. |
+| `scripts/` | Entry points: `build_month.py`, `promote_month.py`, `ars_launcher.py`, `ars_launcher_web.py` + `sheila_hub*.py` (Sheila; `--app` + `sheila_app.py` = the same Sheila as a Windows desktop app, an Edge app window started by `launchers/CSM Sheila App.bat`, kept beside the browser version), `build_cashplease.py`, `oddd_optimize.py`, `watch_sources.py`, `deck_status.py`, `dashboard.py`, `refresh_performance_dashboard.py`, `release_launcher.ps1`, `live_review.py`, `register_*.ps1`, `launchers/`. |
 | `sheila_mcp/` | Sheila in Claude (the Claude Desktop extension's server). |
 | `validation/` | `validate_deck.py` (0 FAIL to ship), `qa_all.py` (the full gate), `layout_baseline.json`. |
 | `templates/` | The per-program shells, the reference deck, `STYLE.md`, `TEMPLATES.md`. |

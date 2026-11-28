@@ -2194,12 +2194,31 @@ def tidy(say=None):
     return freed
 
 
+def busy():
+    """True while this Sheila has a deck build or an ILS run that has not finished (queued ones included): the desktop
+    app waits for them before stopping when its window is closed, so closing the window never cuts a build short."""
+    with _jobs_lock:
+        if any(not j.done for j in _jobs.values()):
+            return True
+    try:
+        import ils_runs
+        with ils_runs._lock:
+            return any(not j.done for j in ils_runs._jobs.values())
+    except Exception:                       # noqa: BLE001 — no ILS module, no ILS run in progress
+        return False
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="CSM Sheila, the Smart Helper for Executive Insights, Layouts & Analytics: the browser front end for ars_launcher.")
     ap.add_argument("--port", type=int, default=0, help="default: any free port")
     ap.add_argument("--no-open", action="store_true", help="don't open a browser")
     ap.add_argument("--tidy", action="store_true", help="clean up old local build scratch and cache, then exit")
+    ap.add_argument("--app", action="store_true",
+                    help="the desktop app: Sheila in a window of her own (Microsoft Edge in app mode); she stops when it closes")
     a = ap.parse_args(argv)
+    if a.app:
+        import sheila_app
+        sheila_app.log_to_file()        # under pythonw there is no console to print to
     if a.tidy:
         tidy()
         return 0
@@ -2210,9 +2229,13 @@ def main(argv=None):
     sheila_hub.who_am_i()           # once, here, so the first page does not wait on the share
     url = f"http://127.0.0.1:{srv.server_address[1]}/"
     print(f"\n CSM Sheila is running at {url}")
-    print(" Keep this window open while you build. Close it when you're done.\n", flush=True)
+    if not a.app:
+        print(" Keep this window open while you build. Close it when you're done.\n", flush=True)
     threading.Thread(target=prewarm, daemon=True).start()
-    if not a.no_open:
+    if a.app:
+        # The same server and page in a window of their own; the server stops when the window closes (sheila_app.run).
+        threading.Thread(target=sheila_app.run, args=(url, srv.shutdown), kwargs={"busy": busy}, daemon=True).start()
+    elif not a.no_open:
         threading.Timer(0.4, lambda: webbrowser.open(url)).start()
     try:
         srv.serve_forever()
