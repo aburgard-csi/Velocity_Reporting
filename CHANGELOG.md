@@ -15,6 +15,20 @@ Format: newest first, dated, with the reason — not just the change.
 
 ---
 
+### 2026-11-28 — CSM Sheila as a Windows desktop app, beside the browser version (`scripts/sheila_app.py`, `scripts/launchers/CSM Sheila App.bat`)
+
+Summary: Sheila can now run as a desktop app. Double-click "CSM Sheila App.bat" and she opens in a window of her own, with her own taskbar icon, no address bar or tabs, and no black window to keep open. Close the window and she stops, after finishing any build in progress. The browser version ("ARS Deck Builder GUI.bat") is unchanged, and both show the same Sheila.
+
+Aaron, 2026-11-28: "Create a version of Sheila that will run as a desktop app. Maintain both the web version and the app version. This needs to run on Windows."
+
+- **One Sheila, two windows.** `ars_launcher_web.py --app` starts the same 127.0.0.1 server, token, page and build queue, and shows the page in Microsoft Edge's app mode instead of a browser tab. Nothing about the page is forked, so every change reaches both versions.
+- **Why Edge's app mode.** Edge and its WebView2 runtime are on every Windows 11 PC, so nothing is added to the shared Python runtime and no `-Runtime` release is needed. A native-window library would need pythonnet, which the runtime's Python 3.14 does not reliably support.
+- **The window owns the app.** Edge runs on a profile of Sheila's own, `%LOCALAPPDATA%\RPE\sheila_app`, which remembers the window's size and place and stays out of the CSM's own browser. Edge keeps that profile's `lockfile` locked while a window is open (`sheila_app.window_open`), and the server stops when it is released. Deck builds and ILS runs in progress, queued ones included, finish first (`ars_launcher_web.busy`).
+- **No console.** The `.bat` starts Sheila with `pythonw`; what she prints goes to `%LOCALAPPDATA%\RPE\sheila_app.log`.
+- **Fallbacks.** With no Edge, or an Edge that shows no window, she opens in the default browser and keeps serving, as the web version does.
+- **Release and docs.** The release copies the new `.bat` to CSM_Reporting with the others. The user guide says how to start the app. VERSION 2.6.
+- **Tests.** `tests/test_sheila_app.py`. Also checked end to end against the real Edge (headless): the window was seen open, and closing Edge stopped the server.
+
 ### 2026-11-25 — ICS cohort table: right table, after ICS Revenue, no repeated column; peer slides balanced (`build/ics_pipeline/build_ics_gen.py`, `build/peer_slide.py`)
 
 Summary: Three changes from Aaron's review of Marine FCU's November deck. The ICS cohort table now follows ICS Revenue. It no longer shows "Year 1" and "Program to Date" side by side with the same figures. The "How You Compare" peer slides spread their charts down the slide instead of leaving the lower half empty.
